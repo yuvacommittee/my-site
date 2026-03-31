@@ -1,9 +1,28 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>My Site</title>
+  <title>Shop Data</title>
 </head>
 <body>
-  <h1>Website Live Hai 🚀</h1>
+
+<h1>Shop Data</h1>
+
+<div id="data">Loading...</div>
+
+<script>
+const sheetId = "1PpihPfSdZNUOmHQ"; // apna sheet id
+const url = `https://opensheet.elk.sh/${sheetId}/Sheet1`;
+
+fetch(url)
+  .then(res => res.json())
+  .then(data => {
+    document.getElementById("data").innerHTML =
+      "<pre>" + JSON.stringify(data, null, 2) + "</pre>";
+  })
+  .catch(err => {
+    document.getElementById("data").innerHTML = "Error: " + err;
+  });
+</script>
+
 </body>
 </html>
