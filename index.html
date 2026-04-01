@@ -1,28 +1,128 @@
 <!DOCTYPE html>
-<html>
+<html lang="hi">
 <head>
-  <title>Shop Data</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PDS Report</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<style>
+body { font-family: Arial; background:#f3f4f6; margin:0; padding:15px; }
+.header-box { background:#e5e7eb; padding:15px; border-radius:10px; text-align:center; margin-bottom:15px; }
+.header-box h2 { margin:5px; }
+.top-bar { display:flex; justify-content:space-between; flex-wrap:wrap; margin-bottom:10px; }
+.top-bar button { padding:7px 12px; border:none; border-radius:6px; margin:5px; cursor:pointer; color:white; }
+.excel { background:#16a34a; }
+.pdf { background:#dc2626; }
+.print { background:#2563eb; }
+.refresh { background:#f59e0b; }
+input { padding:6px; border-radius:5px; border:1px solid #ccc; }
+table { width:100%; border-collapse:collapse; background:white; }
+th { background:#1e3a8a; color:white; padding:8px; font-size:14px; }
+td { padding:7px; border:1px solid #ddd; font-size:13px; }
+tr:nth-child(even) { background:#f9fafb; }
+.loading { text-align:center; padding:30px; font-size:18px; }
+.error { color:red; text-align:center; }
+</style>
 </head>
 <body>
 
-<h1>Shop Data</h1>
+<div class="header-box">
+  <h2 id="shopName">दुकानदार का नाम: -- | दुकान संख्या: --</h2>
+  <p>निकाय: -- | जिला: --</p>
+  <small>Report Generated: <span id="reportTime"></span></small>
+</div>
 
-<div id="data">Loading...</div>
+<div class="top-bar">
+  <div><input type="month" id="monthPicker"></div>
+  <div>
+    <button class="excel" onclick="downloadExcel()">Excel</button>
+    <button class="pdf" onclick="downloadPDF()">PDF</button>
+    <button class="print" onclick="window.print()">Print</button>
+    <button class="refresh" onclick="fetchData()">Refresh</button>
+  </div>
+</div>
+
+<div id="table-container">
+  <div class="loading">डेटा लोड हो रहा है...</div>
+</div>
 
 <script>
-const sheetId = "1PpihPfSdZNUOmHQ"; // apna sheet id
-const url = `https://opensheet.elk.sh/${sheetId}/Sheet1`;
+document.getElementById("reportTime").innerText = new Date().toLocaleString();
 
-fetch(url)
-  .then(res => res.json())
-  .then(data => {
-    document.getElementById("data").innerHTML =
-      "<pre>" + JSON.stringify(data, null, 2) + "</pre>";
-  })
-  .catch(err => {
-    document.getElementById("data").innerHTML = "Error: " + err;
+const urlParams = new URLSearchParams(window.location.search);
+const shopId = urlParams.get('shop');
+
+if (!shopId) {
+  document.getElementById("table-container").innerHTML = '<div class="error">Shop ID missing. Use ?shop=YOUR_SHEET_ID</div>';
+} else {
+  fetchData();
+}
+
+async function fetchData() {
+  const container = document.getElementById("table-container");
+  container.innerHTML = '<div class="loading">लोड हो रहा है...</div>';
+
+  try {
+    const res = await fetch(`/.netlify/functions/getShopData?shop=${shopId}`);
+    const data = await res.json();
+
+    if (data.status === 'success') {
+      renderTable(data.data);
+    } else {
+      container.innerHTML = `<div class="error">${data.message || 'Unknown error'}</div>`;
+    }
+  } catch (err) {
+    container.innerHTML = `<div class="error">Network error: ${err.message}</div>`;
+  }
+}
+
+function renderTable(data) {
+  if (!data || data.length === 0) {
+    document.getElementById("table-container").innerHTML = '<div class="error">No data found</div>';
+    return;
+  }
+
+  let html = '<table id="reportTable"><thead><tr><th>क्रम</th>';
+  for (let j = 0; j < data[0].length; j++) {
+    html += `<th>${escapeHtml(data[0][j])}</th>`;
+  }
+  html += '</thead><tbody>';
+  for (let i = 1; i < data.length; i++) {
+    html += '<tr>';
+    html += `<td>${i}</td>`;
+    for (let j = 0; j < data[i].length; j++) {
+      html += `<td>${escapeHtml(data[i][j] || '')}</td>`;
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  document.getElementById("table-container").innerHTML = html;
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/[&<>]/g, function(m) {
+    if (m === '&') return '&amp;';
+    if (m === '<') return '&lt;';
+    if (m === '>') return '&gt;';
+    return m;
   });
-</script>
+}
 
+function downloadPDF() {
+  const element = document.getElementById("reportTable");
+  html2pdf().from(element).save("report.pdf");
+}
+
+function downloadExcel() {
+  let table = document.getElementById("reportTable");
+  let html = table.outerHTML;
+  let url = 'data:application/vnd.ms-excel,' + encodeURIComponent(html);
+  let link = document.createElement("a");
+  link.href = url;
+  link.download = "report.xls";
+  link.click();
+}
+</script>
 </body>
 </html>
