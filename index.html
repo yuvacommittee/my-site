@@ -28,7 +28,7 @@ tr:nth-child(even) { background:#f9fafb; }
 
 <div class="header-box">
   <h2 id="shopName">दुकानदार का नाम: -- | दुकान संख्या: --</h2>
-  <p>निकाय: -- | जिला: --</p>
+  <p id="nikayaJila">निकाय: -- | जिला: --</p>
   <small>Report Generated: <span id="reportTime"></span></small>
 </div>
 
@@ -49,8 +49,17 @@ tr:nth-child(even) { background:#f9fafb; }
 <script>
 document.getElementById("reportTime").innerText = new Date().toLocaleString();
 
+// URL parameters पढ़ो
 const urlParams = new URLSearchParams(window.location.search);
 const shopId = urlParams.get('shop');
+const shopName = urlParams.get('shopName') || '--';
+const shopNumber = urlParams.get('shopNumber') || '--';
+const nikaya = urlParams.get('nikaya') || '--';
+const jila = urlParams.get('jila') || '--';
+
+// Header update
+document.getElementById('shopName').innerHTML = `दुकानदार का नाम: ${decodeURIComponent(shopName)} | दुकान संख्या: ${shopNumber}`;
+document.getElementById('nikayaJila').innerHTML = `निकाय: ${decodeURIComponent(nikaya)} | जिला: ${decodeURIComponent(jila)}`;
 
 if (!shopId) {
   document.getElementById("table-container").innerHTML = '<div class="error">Shop ID missing. Use ?shop=YOUR_SHEET_ID</div>';
@@ -82,11 +91,11 @@ function renderTable(data) {
     return;
   }
 
-  let html = '<table id="reportTable"><thead><tr><th>क्रम</th>';
+  let html = '<table id="reportTable"><thead>\\n<tr><th>क्रम</th>';
   for (let j = 0; j < data[0].length; j++) {
     html += `<th>${escapeHtml(data[0][j])}</th>`;
   }
-  html += '</thead><tbody>';
+  html += '</tr></thead><tbody>';
   for (let i = 1; i < data.length; i++) {
     html += '<tr>';
     html += `<td>${i}</td>`;
