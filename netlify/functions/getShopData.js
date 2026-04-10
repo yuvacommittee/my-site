@@ -6,7 +6,6 @@ exports.handler = async (event) => {
     return { statusCode: 400, body: JSON.stringify({ error: 'Missing shop ID' }) };
   }
 
-  // Environment variables (Netlify में set करना है)
   const SCRIPT_URL = process.env.SCRIPT_URL;
   const SECRET_TOKEN = process.env.SECRET_TOKEN;
 

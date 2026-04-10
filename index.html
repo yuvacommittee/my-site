@@ -28,7 +28,7 @@ tr:nth-child(even) { background:#f9fafb; }
 
 <div class="header-box">
   <h2 id="shopName">दुकानदार का नाम: -- | दुकान संख्या: --</h2>
-  <p id="nikayaJila">निकाय: -- | जिला: --</p>
+  <p id="nikayaJila"></p>
   <small>Report Generated: <span id="reportTime"></span></small>
 </div>
 
@@ -59,7 +59,7 @@ const jila = urlParams.get('jila') || '--';
 
 // Header update
 document.getElementById('shopName').innerHTML = `दुकानदार का नाम: ${decodeURIComponent(shopName)} | दुकान संख्या: ${shopNumber}`;
-document.getElementById('nikayaJila').innerHTML = `निकाय: ${decodeURIComponent(nikaya)} | जिला: ${decodeURIComponent(jila)}`;
+document.getElementById('nikayaJila').innerHTML = ` ${decodeURIComponent(nikaya)}  ${decodeURIComponent(jila)}`;
 
 if (!shopId) {
   document.getElementById("table-container").innerHTML = '<div class="error">Shop ID missing. Use ?shop=YOUR_SHEET_ID</div>';
