@@ -28,6 +28,7 @@ tr:nth-child(even) { background:#f9fafb; }
 .loading { text-align:center; padding:30px; font-size:18px; }
 .error { color:#b91c1c; text-align:center; padding:20px; }
 .table-scroll { width:100%; overflow-x:auto; }
+
 @media (max-width:700px) {
   body { padding:8px; }
   .top-bar { align-items:stretch; }
@@ -37,54 +38,78 @@ tr:nth-child(even) { background:#f9fafb; }
   .toolbar-right { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
   .toolbar-right button { width:100%; }
 }
+
+/* PDF और Print के लिए जरूरी सेटिंग्स */
 @media print {
   body { padding:0; background:#fff; }
   .top-bar { display:none !important; }
   .header-box { background:#fff; border:1px solid #ddd; }
   .table-scroll { overflow:visible; }
+  .data-table thead { display: table-header-group; } /* हर पेज पर हेडर दोहराएगा */
+  .data-table tr { page-break-inside: avoid; } /* पंक्ति बीच से नहीं कटेगी */
+}
+
+/* PDF के लिए कस्टम क्लास */
+.pdf-export-mode .top-bar { display: none !important; }
+.pdf-export-mode .header-box { 
+    display: block !important; 
+    position: running(header); 
+    margin-bottom: 20px; 
+    text-align: center; 
+    background: #fff; 
+    border: 1px solid #ccc;
+    padding: 10px;
 }
 </style>
 </head>
 <body>
 
-<div class="header-box">
-  <h2 id="shopName">दुकानदार का नाम: -- | दुकान संख्या: --</h2>
-  <p id="nikayaJila"></p>
-  <small>Report Generated: <span id="reportTime"></span></small>
-</div>
+<!-- MAIN WRAPPER (जिसे PDF में कैप्चर किया जाएगा) -->
+<div id="reportWrapper">
 
-<div class="top-bar">
-  <div class="toolbar-left">
-    <div class="control-group">
-      <label for="monthPicker">महीना</label>
-      <input type="month" id="monthPicker">
+    <!-- यह हेडर अब PDF में भी आएगा -->
+    <div class="header-box" id="reportHeaderBox">
+      <h2 id="shopName">दुकानदार का नाम: -- | दुकान संख्या: --</h2>
+      <p id="nikayaJila"></p>
+      <small>Report Generated: <span id="reportTime"></span></small>
     </div>
-    <div class="control-group">
-      <label for="sortBy">Sort By</label>
-      <select id="sortBy" aria-label="Sort By कार्ड का प्रकार">
-        <option value="AAY" selected>AAY पहले</option>
-        <option value="PHH">PHH पहले</option>
-      </select>
-    </div>
-    <div class="control-group">
-      <label for="viewBy">View</label>
-      <select id="viewBy" aria-label="View के अनुसार क्रम">
-        <option value="ration" selected>राशन कार्ड संख्या</option>
-        <option value="name">धारक का नाम</option>
-        <option value="units">कुल यूनिट</option>
-      </select>
-    </div>
-  </div>
-  <div class="toolbar-right">
-    <button class="excel" onclick="downloadExcel()">Excel</button>
-    <button class="pdf" onclick="downloadPDF()">PDF</button>
-    <button class="print" onclick="window.print()">Print</button>
-    <button class="refresh" onclick="fetchData()">Refresh</button>
-  </div>
-</div>
 
-<div id="table-container">
-  <div class="loading">डेटा लोड हो रहा है...</div>
+    <!-- कंट्रोल्स (ये PDF में नहीं आएंगे) -->
+    <div class="top-bar">
+      <div class="toolbar-left">
+        <div class="control-group">
+          <label for="monthPicker">महीना</label>
+          <input type="month" id="monthPicker">
+        </div>
+        <div class="control-group">
+          <label for="sortBy">Sort By</label>
+          <select id="sortBy" aria-label="Sort By कार्ड का प्रकार">
+            <option value="AAY" selected>AAY पहले</option>
+            <option value="PHH">PHH पहले</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label for="viewBy">View</label>
+          <select id="viewBy" aria-label="View के अनुसार क्रम">
+            <option value="ration" selected>राशन कार्ड संख्या</option>
+            <option value="name">धारक का नाम</option>
+            <option value="units">कुल यूनिट</option>
+          </select>
+        </div>
+      </div>
+      <div class="toolbar-right">
+        <button class="excel" onclick="downloadExcel()">Excel</button>
+        <button class="pdf" onclick="downloadPDF()">PDF</button>
+        <button class="print" onclick="window.print()">Print</button>
+        <button class="refresh" onclick="fetchData()">Refresh</button>
+      </div>
+    </div>
+
+    <!-- टेबल कंटेनर -->
+    <div id="table-container">
+      <div class="loading">डेटा लोड हो रहा है...</div>
+    </div>
+
 </div>
 
 <script>
@@ -97,11 +122,10 @@ const shopNumber = urlParams.get('shopNumber') || '--';
 const nikaya = urlParams.get('nikaya') || '--';
 const jila = urlParams.get('jila') || '--';
 
-// मूल शीट डेटा सुरक्षित रखते हैं; हर बार Sort By और View इसी डेटा पर अलग-अलग लागू होते हैं।
 let originalSheetData = [];
 
 document.getElementById('shopName').textContent = `दुकानदार का नाम: ${shopName} | दुकान संख्या: ${shopNumber}`;
-document.getElementById('nikayaJila').textContent = `${nikaya} ${jila}`;
+document.getElementById('nikayaJila').textContent = `जिला : ${jila} ब्लॉक : ${nikaya}`;
 
 if (!shopId) {
   document.getElementById("table-container").innerHTML = '<div class="error">Shop ID missing. Use ?shop=YOUR_SHEET_ID</div>';
@@ -109,7 +133,6 @@ if (!shopId) {
   fetchData();
 }
 
-// दोनों dropdown स्वतंत्र हैं; किसी एक को बदलने पर केवल उसी विकल्प का मान बदलता है।
 document.getElementById('sortBy').addEventListener('change', renderSortedTable);
 document.getElementById('viewBy').addEventListener('change', renderSortedTable);
 
@@ -157,7 +180,6 @@ function compareHindiText(a, b) {
 function compareCardNumbers(a, b) {
   const left = String(a == null ? '' : a).trim();
   const right = String(b == null ? '' : b).trim();
-  // कार्ड नंबर में अक्षर/शून्य भी हो सकते हैं, इसलिए natural numeric text comparison इस्तेमाल करें।
   return left.localeCompare(right, 'en', { numeric: true, sensitivity: 'base' });
 }
 
@@ -177,7 +199,6 @@ function renderSortedTable() {
   const headers = originalSheetData[0].map(value => String(value == null ? '' : value).trim());
   const rows = originalSheetData.slice(1).filter(row => Array.isArray(row));
 
-  // अपेक्षित कॉलम के नाम खोजें; थोड़े अतिरिक्त spaces होने पर भी कॉलम मिल जाएगा।
   const cardTypeIndex = findColumn(headers, ['कार्ड का प्रकार', 'राशन कार्ड का प्रकार', 'Card Type', 'Scheme']);
   const rationIndex = findColumn(headers, ['राशन कार्ड संख्या', 'राशन कार्ड सं.', 'राशन कार्ड नंबर', 'Ration Card Number', 'RC Number', 'RC No']);
   const nameIndex = findColumn(headers, ['धारक का नाम', 'राशन कार्ड धारक का नाम', 'Card Holder Name', 'Name']);
@@ -188,7 +209,6 @@ function renderSortedTable() {
 
   const decoratedRows = rows.map((row, index) => ({ row, originalIndex: index }));
   decoratedRows.sort((a, b) => {
-    // Sort By: चुने गए कार्ड प्रकार को पहले रखें, बाकी कार्ड उसके बाद।
     if (cardTypeIndex !== -1) {
       const typeA = String(a.row[cardTypeIndex] == null ? '' : a.row[cardTypeIndex]).trim().toUpperCase();
       const typeB = String(b.row[cardTypeIndex] == null ? '' : b.row[cardTypeIndex]).trim().toUpperCase();
@@ -197,7 +217,6 @@ function renderSortedTable() {
       if (priorityA !== priorityB) return priorityA - priorityB;
     }
 
-    // View: चुने हुए कॉलम में ascending क्रम, कार्ड प्रकार की प्राथमिकता के भीतर।
     let comparison = 0;
     if (viewPreference === 'ration' && rationIndex !== -1) {
       comparison = compareCardNumbers(a.row[rationIndex], b.row[rationIndex]);
@@ -209,7 +228,8 @@ function renderSortedTable() {
     return comparison || a.originalIndex - b.originalIndex;
   });
 
-  let html = '<div class="table-scroll"><table id="reportTable"><thead><tr><th>क्रम</th>';
+  // यहाँ table में class="data-table" जोड़ा गया है ताकि CSS पेज ब्रेक कंट्रोल कर सके
+  let html = '<div class="table-scroll"><table id="reportTable" class="data-table"><thead><tr><th>क्रम</th>';
   headers.forEach(header => { html += `<th>${escapeHtml(header)}</th>`; });
   html += '</tr></thead><tbody>';
 
@@ -236,10 +256,32 @@ function escapeHtml(value) {
   });
 }
 
-function downloadPDF() {
-  const element = document.getElementById("reportTable");
-  if (!element) { alert('पहले डेटा लोड होने दें।'); return; }
-  html2pdf().from(element).save(`report_${shopNumber}.pdf`);
+async function downloadPDF() {
+    const element = document.getElementById("reportWrapper");
+    if (!element) { alert('पहले डेटा लोड होने दें।'); return; }
+
+    // PDF बनाते समय टूलबार को छिपाने के लिए क्लास जोड़ें
+    document.body.classList.add('pdf-export-mode');
+
+    try {
+        // PDF सेटिंग्स
+        const opt = {
+            margin:       [0.3, 0.3, 0.3, 0.3], // मार्जिन (ऊपर, दाएं, नीचे, बाएं)
+            filename:     `report_${shopNumber}.pdf`,
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2, useCORS: true, scrollY: 0 },
+            jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' },
+            pagebreak:    { mode: ['css', 'legacy'], avoid: ['tr', '.header-box'] } // पंक्ति और हेडर बीच से न कटें
+        };
+
+        await html2pdf().set(opt).from(element).save();
+    } catch (err) {
+        console.error(err);
+        alert('PDF बनाने में समस्या आई।');
+    } finally {
+        // काम खत्म होने पर क्लास हटा दें ताकि वेबसाइट सामान्य दिखे
+        document.body.classList.remove('pdf-export-mode');
+    }
 }
 
 function downloadExcel() {
