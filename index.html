@@ -62,63 +62,56 @@ tr:nth-child(even) { background:#f9fafb; }
 }
 
 
-/* Accessibility/readability upgrade for live screen */
-body {
-  color: #111827 !important;
-  font-size: 16px;
-}
-#reportWrapper, #reportWrapper * {
-  font-family: "Noto Sans Devanagari", "Nirmala UI", Arial, sans-serif;
-}
-#reportWrapper table {
-  font-size: 16px !important;
-}
-#reportWrapper th {
-  color: #ffffff !important;
-  font-size: 15px !important;
-  font-weight: 800 !important;
-  padding: 13px 10px !important;
-  line-height: 1.5 !important;
-}
-#reportWrapper td {
+/* PDF readability and contrast improvements */
+.pdf-export-mode {
+  background: #ffffff !important;
   color: #111111 !important;
-  font-size: 15px !important;
-  font-weight: 500 !important;
-  padding: 12px 10px !important;
-  line-height: 1.65 !important;
 }
-#reportWrapper tr:nth-child(even) td {
-  background-color: #f1f5f9 !important;
+.pdf-export-mode #reportWrapper table {
+  width: 100% !important;
+  font-family: "Noto Sans Devanagari", "Nirmala UI", Arial, sans-serif !important;
+  border-collapse: collapse !important;
 }
-#reportWrapper tr:hover td {
-  background-color: #e6efff !important;
-}
-#reportWrapper select,
-#reportWrapper input,
-#reportWrapper button,
-#reportWrapper label,
-#reportWrapper .control-group {
-  font-size: 15px !important;
-}
-#reportWrapper select,
-#reportWrapper input {
-  min-height: 42px;
-  color: #111827 !important;
-  font-weight: 600;
-}
-#reportWrapper .control-group label {
-  color: #111827 !important;
+.pdf-export-mode #reportWrapper th {
+  background: #17356b !important;
+  color: #ffffff !important;
+  font-family: "Noto Sans Devanagari", "Nirmala UI", Arial, sans-serif !important;
+  font-size: 13px !important;
   font-weight: 800 !important;
+  padding: 9px 7px !important;
+  line-height: 1.45 !important;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
 }
-@media (max-width: 768px) {
-  body { padding: 10px !important; }
-  #reportWrapper th { font-size: 14px !important; padding: 11px 8px !important; }
-  #reportWrapper td { font-size: 14px !important; padding: 11px 8px !important; }
-  #reportWrapper select, #reportWrapper input, #reportWrapper button { font-size: 14px !important; }
+.pdf-export-mode #reportWrapper td {
+  color: #111111 !important;
+  font-family: "Noto Sans Devanagari", "Nirmala UI", Arial, sans-serif !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  padding: 8px 7px !important;
+  line-height: 1.5 !important;
+  border: 1px solid #d5deea !important;
 }
-/* Keep exported PDF text styling clean and readable */
-.pdf-export-mode #reportWrapper th { font-size: 13px !important; padding: 9px 7px !important; }
-.pdf-export-mode #reportWrapper td { font-size: 12px !important; padding: 8px 7px !important; }
+.pdf-export-mode #reportWrapper tr:nth-child(even) td {
+  background: #f1f5f9 !important;
+}
+.pdf-export-mode #reportWrapper .header-box {
+  background: #17356b !important;
+  color: #ffffff !important;
+  border: 1px solid #31558d !important;
+  padding: 15px 12px !important;
+  margin-bottom: 14px !important;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+.pdf-export-mode #reportWrapper .header-box h2,
+.pdf-export-mode #reportWrapper .header-box p,
+.pdf-export-mode #reportWrapper .header-box small {
+  color: #ffffff !important;
+}
+@media print {
+  #reportWrapper th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
 
 </style>
 </head>
@@ -153,7 +146,7 @@ body {
           <select id="viewBy" aria-label="View के अनुसार क्रम">
             <option value="ration" selected>राशन कार्ड संख्या</option>
             <option value="name">धारक का नाम</option>
-            <option value="units">यूनिट</option>
+            <option value="units">कुल यूनिट</option>
           </select>
         </div>
       </div>
@@ -317,6 +310,11 @@ function escapeHtml(value) {
 }
 
 async function downloadPDF() {
+    if (document.fonts && document.fonts.ready) {
+        await document.fonts.ready;
+    }
+    await new Promise(resolve => setTimeout(resolve, 300));
+
     const element = document.getElementById("reportWrapper");
     if (!element) { alert('पहले डेटा लोड होने दें।'); return; }
 
