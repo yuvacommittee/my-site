@@ -6,22 +6,43 @@
 <title>PDS Report</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <style>
-body { font-family: Arial; background:#f3f4f6; margin:0; padding:15px; }
+body { font-family: Arial, sans-serif; background:#f3f4f6; margin:0; padding:15px; color:#111827; }
 .header-box { background:#e5e7eb; padding:15px; border-radius:10px; text-align:center; margin-bottom:15px; }
 .header-box h2 { margin:5px; }
-.top-bar { display:flex; justify-content:space-between; flex-wrap:wrap; margin-bottom:10px; }
-.top-bar button { padding:7px 12px; border:none; border-radius:6px; margin:5px; cursor:pointer; color:white; }
+.top-bar { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:10px; }
+.toolbar-left, .toolbar-right { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+.toolbar-left { gap:10px; }
+.control-group { display:flex; align-items:center; gap:6px; padding:6px 9px; background:#fff; border:1px solid #d1d5db; border-radius:8px; }
+.control-group label { font-size:13px; font-weight:700; white-space:nowrap; }
+.control-group select, input { padding:7px 8px; border-radius:5px; border:1px solid #cbd5e1; background:#fff; font-size:13px; max-width:100%; }
+.top-bar button { padding:8px 13px; border:none; border-radius:6px; margin:0; cursor:pointer; color:white; font-weight:700; }
+.top-bar button:hover { filter:brightness(.94); }
 .excel { background:#16a34a; }
 .pdf { background:#dc2626; }
 .print { background:#2563eb; }
 .refresh { background:#f59e0b; }
-input { padding:6px; border-radius:5px; border:1px solid #ccc; }
 table { width:100%; border-collapse:collapse; background:white; }
 th { background:#1e3a8a; color:white; padding:8px; font-size:14px; }
 td { padding:7px; border:1px solid #ddd; font-size:13px; }
 tr:nth-child(even) { background:#f9fafb; }
 .loading { text-align:center; padding:30px; font-size:18px; }
-.error { color:red; text-align:center; }
+.error { color:#b91c1c; text-align:center; padding:20px; }
+.table-scroll { width:100%; overflow-x:auto; }
+@media (max-width:700px) {
+  body { padding:8px; }
+  .top-bar { align-items:stretch; }
+  .toolbar-left, .toolbar-right { width:100%; }
+  .control-group { flex:1 1 100%; justify-content:space-between; }
+  .control-group select { flex:1; min-width:0; }
+  .toolbar-right { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .toolbar-right button { width:100%; }
+}
+@media print {
+  body { padding:0; background:#fff; }
+  .top-bar { display:none !important; }
+  .header-box { background:#fff; border:1px solid #ddd; }
+  .table-scroll { overflow:visible; }
+}
 </style>
 </head>
 <body>
@@ -33,8 +54,28 @@ tr:nth-child(even) { background:#f9fafb; }
 </div>
 
 <div class="top-bar">
-  <div><input type="month" id="monthPicker"></div>
-  <div>
+  <div class="toolbar-left">
+    <div class="control-group">
+      <label for="monthPicker">महीना</label>
+      <input type="month" id="monthPicker">
+    </div>
+    <div class="control-group">
+      <label for="sortBy">Sort By</label>
+      <select id="sortBy" aria-label="Sort By कार्ड का प्रकार">
+        <option value="AAY" selected>AAY पहले</option>
+        <option value="PHH">PHH पहले</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label for="viewBy">View</label>
+      <select id="viewBy" aria-label="View के अनुसार क्रम">
+        <option value="ration" selected>राशन कार्ड संख्या</option>
+        <option value="name">धारक का नाम</option>
+        <option value="units">कुल यूनिट</option>
+      </select>
+    </div>
+  </div>
+  <div class="toolbar-right">
     <button class="excel" onclick="downloadExcel()">Excel</button>
     <button class="pdf" onclick="downloadPDF()">PDF</button>
     <button class="print" onclick="window.print()">Print</button>
@@ -49,7 +90,6 @@ tr:nth-child(even) { background:#f9fafb; }
 <script>
 document.getElementById("reportTime").innerText = new Date().toLocaleString();
 
-// URL parameters पढ़ो
 const urlParams = new URLSearchParams(window.location.search);
 const shopId = urlParams.get('shop');
 const shopName = urlParams.get('shopName') || '--';
@@ -57,9 +97,11 @@ const shopNumber = urlParams.get('shopNumber') || '--';
 const nikaya = urlParams.get('nikaya') || '--';
 const jila = urlParams.get('jila') || '--';
 
-// Header update
-document.getElementById('shopName').innerHTML = `दुकानदार का नाम: ${decodeURIComponent(shopName)} | दुकान संख्या: ${shopNumber}`;
-document.getElementById('nikayaJila').innerHTML = ` ${decodeURIComponent(nikaya)}  ${decodeURIComponent(jila)}`;
+// मूल शीट डेटा सुरक्षित रखते हैं; हर बार Sort By और View इसी डेटा पर अलग-अलग लागू होते हैं।
+let originalSheetData = [];
+
+document.getElementById('shopName').textContent = `दुकानदार का नाम: ${shopName} | दुकान संख्या: ${shopNumber}`;
+document.getElementById('nikayaJila').textContent = `${nikaya} ${jila}`;
 
 if (!shopId) {
   document.getElementById("table-container").innerHTML = '<div class="error">Shop ID missing. Use ?shop=YOUR_SHEET_ID</div>';
@@ -67,70 +109,152 @@ if (!shopId) {
   fetchData();
 }
 
+// दोनों dropdown स्वतंत्र हैं; किसी एक को बदलने पर केवल उसी विकल्प का मान बदलता है।
+document.getElementById('sortBy').addEventListener('change', renderSortedTable);
+document.getElementById('viewBy').addEventListener('change', renderSortedTable);
+
 async function fetchData() {
   const container = document.getElementById("table-container");
   container.innerHTML = '<div class="loading">लोड हो रहा है...</div>';
 
   try {
-    const res = await fetch(`/.netlify/functions/getShopData?shop=${shopId}`);
+    const res = await fetch(`/.netlify/functions/getShopData?shop=${encodeURIComponent(shopId)}`);
+    if (!res.ok) throw new Error(`Server returned ${res.status}`);
     const data = await res.json();
 
     if (data.status === 'success') {
-      renderTable(data.data);
+      originalSheetData = Array.isArray(data.data) ? data.data : [];
+      renderSortedTable();
     } else {
-      container.innerHTML = `<div class="error">${data.message || 'Unknown error'}</div>`;
+      originalSheetData = [];
+      container.innerHTML = `<div class="error">${escapeHtml(data.message || 'Unknown error')}</div>`;
     }
   } catch (err) {
-    container.innerHTML = `<div class="error">Network error: ${err.message}</div>`;
+    container.innerHTML = `<div class="error">Network error: ${escapeHtml(err.message)}</div>`;
   }
 }
 
-function renderTable(data) {
-  if (!data || data.length === 0) {
-    document.getElementById("table-container").innerHTML = '<div class="error">No data found</div>';
+function normalizeHeader(value) {
+  return String(value == null ? '' : value).replace(/[\s\u200B-\u200D\uFEFF]+/g, '').trim().toLowerCase();
+}
+
+function findColumn(headers, candidates) {
+  const normalized = headers.map(normalizeHeader);
+  for (const candidate of candidates) {
+    const index = normalized.indexOf(normalizeHeader(candidate));
+    if (index !== -1) return index;
+  }
+  return -1;
+}
+
+function compareHindiText(a, b) {
+  return String(a == null ? '' : a).trim().localeCompare(String(b == null ? '' : b).trim(), 'hi', {
+    numeric: true,
+    sensitivity: 'base'
+  });
+}
+
+function compareCardNumbers(a, b) {
+  const left = String(a == null ? '' : a).trim();
+  const right = String(b == null ? '' : b).trim();
+  // कार्ड नंबर में अक्षर/शून्य भी हो सकते हैं, इसलिए natural numeric text comparison इस्तेमाल करें।
+  return left.localeCompare(right, 'en', { numeric: true, sensitivity: 'base' });
+}
+
+function numericValue(value) {
+  const cleaned = String(value == null ? '' : value).replace(/,/g, '').trim();
+  const match = cleaned.match(/-?\d+(?:\.\d+)?/);
+  return match ? Number(match[0]) : 0;
+}
+
+function renderSortedTable() {
+  const container = document.getElementById('table-container');
+  if (!originalSheetData.length || originalSheetData.length < 2) {
+    container.innerHTML = '<div class="error">No data found</div>';
     return;
   }
 
-  let html = '<table id="reportTable"><thead>\\n<tr><th>क्रम</th>';
-  for (let j = 0; j < data[0].length; j++) {
-    html += `<th>${escapeHtml(data[0][j])}</th>`;
-  }
-  html += '</tr></thead><tbody>';
-  for (let i = 1; i < data.length; i++) {
-    html += '<tr>';
-    html += `<td>${i}</td>`;
-    for (let j = 0; j < data[i].length; j++) {
-      html += `<td>${escapeHtml(data[i][j] || '')}</td>`;
+  const headers = originalSheetData[0].map(value => String(value == null ? '' : value).trim());
+  const rows = originalSheetData.slice(1).filter(row => Array.isArray(row));
+
+  // अपेक्षित कॉलम के नाम खोजें; थोड़े अतिरिक्त spaces होने पर भी कॉलम मिल जाएगा।
+  const cardTypeIndex = findColumn(headers, ['कार्ड का प्रकार', 'राशन कार्ड का प्रकार', 'Card Type', 'Scheme']);
+  const rationIndex = findColumn(headers, ['राशन कार्ड संख्या', 'राशन कार्ड सं.', 'राशन कार्ड नंबर', 'Ration Card Number', 'RC Number', 'RC No']);
+  const nameIndex = findColumn(headers, ['धारक का नाम', 'राशन कार्ड धारक का नाम', 'Card Holder Name', 'Name']);
+  const unitsIndex = findColumn(headers, ['कुल यूनिट', 'कुल इकाई', 'Total Units', 'Units']);
+
+  const sortPreference = document.getElementById('sortBy').value || 'AAY';
+  const viewPreference = document.getElementById('viewBy').value || 'ration';
+
+  const decoratedRows = rows.map((row, index) => ({ row, originalIndex: index }));
+  decoratedRows.sort((a, b) => {
+    // Sort By: चुने गए कार्ड प्रकार को पहले रखें, बाकी कार्ड उसके बाद।
+    if (cardTypeIndex !== -1) {
+      const typeA = String(a.row[cardTypeIndex] == null ? '' : a.row[cardTypeIndex]).trim().toUpperCase();
+      const typeB = String(b.row[cardTypeIndex] == null ? '' : b.row[cardTypeIndex]).trim().toUpperCase();
+      const priorityA = typeA === sortPreference ? 0 : 1;
+      const priorityB = typeB === sortPreference ? 0 : 1;
+      if (priorityA !== priorityB) return priorityA - priorityB;
     }
+
+    // View: चुने हुए कॉलम में ascending क्रम, कार्ड प्रकार की प्राथमिकता के भीतर।
+    let comparison = 0;
+    if (viewPreference === 'ration' && rationIndex !== -1) {
+      comparison = compareCardNumbers(a.row[rationIndex], b.row[rationIndex]);
+    } else if (viewPreference === 'name' && nameIndex !== -1) {
+      comparison = compareHindiText(a.row[nameIndex], b.row[nameIndex]);
+    } else if (viewPreference === 'units' && unitsIndex !== -1) {
+      comparison = numericValue(a.row[unitsIndex]) - numericValue(b.row[unitsIndex]);
+    }
+    return comparison || a.originalIndex - b.originalIndex;
+  });
+
+  let html = '<div class="table-scroll"><table id="reportTable"><thead><tr><th>क्रम</th>';
+  headers.forEach(header => { html += `<th>${escapeHtml(header)}</th>`; });
+  html += '</tr></thead><tbody>';
+
+  decoratedRows.forEach((item, index) => {
+    html += `<tr><td>${index + 1}</td>`;
+    headers.forEach((_, colIndex) => {
+      html += `<td>${escapeHtml(item.row[colIndex] == null ? '' : item.row[colIndex])}</td>`;
+    });
     html += '</tr>';
-  }
-  html += '</tbody></table>';
-  document.getElementById("table-container").innerHTML = html;
+  });
+
+  html += '</tbody></table></div>';
+  container.innerHTML = html;
 }
 
-function escapeHtml(str) {
-  if (!str) return '';
-  return String(str).replace(/[&<>]/g, function(m) {
+function escapeHtml(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, function(m) {
     if (m === '&') return '&amp;';
     if (m === '<') return '&lt;';
     if (m === '>') return '&gt;';
+    if (m === '"') return '&quot;';
+    if (m === "'") return '&#39;';
     return m;
   });
 }
 
 function downloadPDF() {
   const element = document.getElementById("reportTable");
-  html2pdf().from(element).save("report.pdf");
+  if (!element) { alert('पहले डेटा लोड होने दें।'); return; }
+  html2pdf().from(element).save(`report_${shopNumber}.pdf`);
 }
 
 function downloadExcel() {
-  let table = document.getElementById("reportTable");
-  let html = table.outerHTML;
-  let url = 'data:application/vnd.ms-excel,' + encodeURIComponent(html);
-  let link = document.createElement("a");
+  const table = document.getElementById("reportTable");
+  if (!table) { alert('पहले डेटा लोड होने दें।'); return; }
+  const html = '<html><head><meta charset="UTF-8"></head><body>' + table.outerHTML + '</body></html>';
+  const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
   link.href = url;
-  link.download = "report.xls";
+  link.download = `report_${shopNumber}.xls`;
+  document.body.appendChild(link);
   link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 </script>
 </body>
